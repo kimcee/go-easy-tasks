@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyTask</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="container mt-5">
+    <h1>EasyTask</h1>
+    <div class="mb-3">
+        <label for="taskName" class="form-label">Task Name</label>
+        <input type="text" class="form-control" id="taskName">
+    </div>
+    <button type="button" class="btn btn-primary mb-3" id="addTask">Add Task</button>
+    <table class="table table-striped table-hover table-sm border">
+        <thead>
+            <tr class="table-dark">
+                <th>Name</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th style="min-width: 150px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="tasksTable">
+        </tbody>
+    </table>
+</div>
+
+<!-- Edit Task Modal -->
+<div class="modal fade" id="editTaskModal" tabindex="-1" role="dialog" aria-labelledby="editTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editTaskModalLabel">Edit Task</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editTaskForm">
+                    <input type="hidden" name="editTaskId" id="editTaskId" />
+                    <div class="form-group">
+                        <label for="editTaskName">Task Name</label>
+                        <input type="text" class="form-control" id="editTaskName" name="editTaskName" placeholder="Enter task name">
+                    </div>
+                    <div class="form-group">
+                        <label for="editTaskDescription">Task Description</label>
+                        <textarea class="form-control" id="editTaskDescription" name="editTaskDescription" placeholder="Enter task Description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskDescription">Task Status</label>
+                        <select name="editTaskStatus" class="form-select" id="editTaskStatus">
+                            <option value=""> - Select Status - </option>
+                            <option value="Created">Created</option>
+                            <option value="In Production">In Production</option>
+                            <option value="Test">Test</option>
+                            <option value="Complete">Complete</option>
+                            <option value="Approved">Approved</option>
+                            <option value="On Hold">On Hold</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary close" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveTaskChanges">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+  
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+<script>
+$(document).ready(function() {
+    let _baseUrl = 'http://localhost:8080';
+    
+    // get all tasks
+    function fetchTasks() {
+        $.ajax({
+            url: _baseUrl + "/tasks",
+            type: "GET",
+            success: function(response) {
+                console.log(response);
+                $('#tasksTable').empty();
+                response.forEach(function(task) {
+                    console.log(task);
+                    $('#tasksTable').append(`
+                        <tr>
+                            <td>${task.name}</td>
+                            <td>${task.description}</td>
+                            <td>${task.task_action}</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary editTask" data-id="${task.ID}">Edit</button>
+                                <button class="btn btn-sm btn-danger deleteTask" data-id="${task.ID}">Delete</button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            }
+        });
+    }
+
+    fetchTasks();
+
+    // Add Task
+    $('#addTask').click(function() {
+        var taskName = $('#taskName').val();
+        $.ajax({
+            url: _baseUrl + "/tasks",
+            type: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ name: taskName, task_action: 'Created', description: '' }),
+            success: function(response) {
+                fetchTasks();
+                $('#taskName').val('');
+            }
+        });
+    });
+
+    $(document).on("click", ".close", function() {
+        $("#editTaskModal").modal("hide");
+    });
+
+    // Delete Task
+    $(document).on('click', '.deleteTask', function() {
+        if (!confirm("Are you sure you want to delete this?")) {
+            return false;
+        }
+
+        var taskId = $(this).data('id');
+        $.ajax({
+            url: _baseUrl + `/tasks/${taskId}`,
+            type: "DELETE",
+            success: function(response) {
+                fetchTasks();
+            }
+        });
+    });
+
+    // edit task
+    $(document).on('click', '.editTask', function() {
+        var taskId = $(this).data('id');
+        
+        $.ajax({
+            url: '/tasks/' + taskId,
+            type: 'GET',
+            success: function(response) {
+                let data = response;
+                console.log(data);
+
+                $('#editTaskId').val(data.ID);
+                $('#editTaskName').val(data.name);
+                $('#editTaskDescription').val(data.description);
+                $('#editTaskStatus').val(data.task_action);
+                $('#editTaskModal').modal('show');
+            },
+            error: function(xhr, status, error) {
+                console.error(xhr.responseText);
+            }
+        });
+    });
+
+    // save edit task
+    $(document).on('click', '#saveTaskChanges', function() {
+        var taskId = $('#editTaskId').val();
+        var taskName = $('#editTaskName').val();
+        var taskStatus = $('#editTaskStatus').val();
+        var taskDescription = $('#editTaskDescription').val();
+
+        var data = {
+            name: taskName,
+            task_action: taskStatus,
+            description: taskDescription,
+        };
+
+        $.ajax({
+            url: '/tasks/' + taskId,
+            type: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                $('#editTaskModal').modal('hide');
+                fetchTasks();
+            },
+            error: function(xhr, status, error) {
+                console.error(xhr.responseText);
+                alert('Error updating task details. Please try again.');
+            }
+        });
+    });
+
+});
+</script>
+</body>
+</html>
